@@ -28,8 +28,8 @@ public class WithWebhookTest {
         p.setDefinition(new CpsFlowDefinition(""
                 + "node {\n"
                 + "  WithWebhook(token: 'test-token', hookUrlEnv:'WEBHOOK_URL') {\n"
-                + "    isUnix() ? sh('echo ${WEBHOOK_URL}') : bat('echo %WEBHOOK_URL%')\n"
                 + "    sleep 30\n"
+                + "    isUnix() ? sh('echo ${WEBHOOK_URL}') : bat('echo %WEBHOOK_URL%')\n"
                 + "  }\n"
                 + "}\n", true));
         
