@@ -8,8 +8,6 @@ import java.util.concurrent.RunnableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-import javax.inject.Inject;
-
 import org.apache.commons.lang.StringUtils;
 import org.jenkinsci.plugins.workflow.steps.AbstractStepExecutionImpl;
 import org.jenkinsci.plugins.workflow.steps.BodyExecution;
@@ -18,29 +16,40 @@ import org.jenkinsci.plugins.workflow.steps.BodyInvoker;
 import org.jenkinsci.plugins.workflow.steps.EnvironmentExpander;
 import org.jenkinsci.plugins.workflow.steps.StepContext;
 
-import hudson.model.TaskListener;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import jenkins.model.CauseOfInterruption;
+import java.io.Serializable;
 
+@SuppressFBWarnings("SE_INNER_CLASS")
 public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 
-	/**
-	 * 
-	 */
+	
+	private static class Trigger implements Serializable {
+
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = -480787289896223268L;
+		
+	}
+	
 	private static final long serialVersionUID = -1581049075182942225L;
 
 	private static final Logger LOGGER = Logger.getLogger(WithWebhookStepExecution.class.getName());
-	@Inject
+    
+	@SuppressFBWarnings(value="SE_TRANSIENT_FIELD_NOT_RESTORED", justification="Only used when starting.")
 	private transient WithWebhookStep step;
 	private BodyExecution body;
 	private transient RunnableFuture<?> killer;
 	private String token;
 	private WebhookResponse response;
-	// private Object triggered;
+	private Trigger trigger;
 
 	public WithWebhookStepExecution(WithWebhookStep step, StepContext context) {
 		super(context);
 		this.step = step;
 		this.response = null;
+		this.trigger = new Trigger();
 	}
 
 	@Override
@@ -90,8 +99,8 @@ public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 		}
 		if (this.getResponse() != null) {
 			if (killer != null) {
-				synchronized (step) {
-					step.notify();
+				synchronized (trigger) {
+					trigger.notify();
 				}
 			}
 		}
@@ -99,15 +108,6 @@ public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 
 	public synchronized WebhookResponse getResponse() {
 		return this.response;
-	}
-
-	private TaskListener listener() {
-		try {
-			return getContext().get(TaskListener.class);
-		} catch (Exception x) {
-			LOGGER.log(Level.WARNING, null, x);
-			return TaskListener.NULL;
-		}
 	}
 
 	private class Callback extends BodyExecutionCallback.TailCall {
@@ -125,6 +125,7 @@ public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 
 	}
 
+	@SuppressFBWarnings("NM_CLASS_NOT_EXCEPTION")
 	public static final class WebhookTriggeredException extends CauseOfInterruption {
 
 		private static final long serialVersionUID = 1L;
@@ -150,7 +151,7 @@ public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 			if (this.getResponse() != null) {
 				LOGGER.log(Level.FINER, "web hook response recieved");
 				LOGGER.log(Level.FINER, "tell killer to kill the nested process");
-				step.notify();
+				trigger.notify();
 			}
 			return;
 		} else {
@@ -158,22 +159,19 @@ public class WithWebhookStepExecution extends AbstractStepExecutionImpl {
 			setKiller(new FutureTask<>(new Runnable() {
 				@Override
 				public void run() {
-					while (getResponse() == null) {
-						try {
-							LOGGER.log(Level.FINER, "waiting for response");
-							synchronized (step) {
-								step.wait();
+					synchronized (trigger) {
+						while (getResponse() == null) {
+							try {
+								LOGGER.log(Level.FINER, "waiting for response");								
+								trigger.wait();
+								LOGGER.log(Level.FINER, "triggered");
+							} catch (InterruptedException e) {
+								e.printStackTrace();
 							}
-							LOGGER.log(Level.FINER, "triggered");
-						} catch (InterruptedException e) {
-							e.printStackTrace();
 						}
-						break;
 					}
-					if (getResponse() != null) {
-						LOGGER.log(Level.FINER, "response recieved, cancel nested process");
-						cancel();
-					}
+					LOGGER.log(Level.FINER, "response recieved, cancel nested process");
+					cancel();
 				}
 			}, getResponse()));
 			new Thread(killer).start();

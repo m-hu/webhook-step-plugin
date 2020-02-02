@@ -1,9 +1,7 @@
 package org.jenkinsci.plugins.webhookstep;
 
-import hudson.FilePath;
 import hudson.model.Result;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
@@ -54,8 +52,8 @@ public class WithWebhookTest {
                 + "node {\n"
                 + " try {\n"
                 + "  WithWebhook(token: 'test-token', hookUrlEnv:'WEBHOOK_URL') {\n"
-                + "    isUnix() ? sh('echo ${WEBHOOK_URL}') : bat('echo %WEBHOOK_URL%')\n"
                 + "    sleep 30\n"
+                + "    isUnix() ? sh('echo ${WEBHOOK_URL}') : bat('echo %WEBHOOK_URL%')\n"
                 + "  }\n"
                 + " }\n"
                 + " catch(WebhookTriggeredException) {\n"
